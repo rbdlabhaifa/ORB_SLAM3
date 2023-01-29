@@ -1463,7 +1463,6 @@ bool System::LoadAtlas(int type)
     bool isRead = false;
 
     string pathLoadFileName = mStrLoadAtlasFromFile;
-    pathLoadFileName = mStrLoadAtlasFromFile.append(".osa");
 
     if(type == TEXT_FILE) // File text
     {

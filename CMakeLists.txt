@@ -127,26 +127,3 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2${CMAKE_SHARED_LIBRARY_SUFFIX
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o${CMAKE_SHARED_LIBRARY_SUFFIX}
 OpenSSL::SSL
 )
-
-
-# Build examples
-      
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/initialAttempt)
-add_executable(mono_file
-        initialAttempt/mono_fromFiles.cc)
-target_link_libraries(mono_file ${PROJECT_NAME})
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
-      add_executable(rgbd_fromFiles
-         initialAttempt/rgbd_fromFiles.cc)
-      target_link_libraries(rgbd_fromFiles ${PROJECT_NAME})
-
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/initialAttempt)
-# add_executable(no_imu_test
-#         initialAttempt/rgbd_noimu.cc)
-# target_link_libraries(no_imu_test ${PROJECT_NAME})
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
-add_executable(viam_main_v1
-        viam-main-dir/main_v1.cc)
-target_link_libraries(viam_main_v1 ${PROJECT_NAME})
-

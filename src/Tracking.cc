@@ -1790,6 +1790,17 @@ void Tracking::ResetFrameIMU()
     // TODO To implement...
 }
 
+std::ofstream drone_destinations_file;
+void Tracking::SaveDestination()
+{
+    if(!drone_destinations_file.is_open())
+        drone_destinations_file.open("drone_destinations.txt");
+    auto cam_pose_wc = -mRwc * mtcw;
+    std::cout << "Saving destination: " << cam_pose_wc << std::endl;
+    drone_destinations_file << cam_pose_wc.coeff(0, 0) << " " << cam_pose_wc.coeff(0, 1) << " " << cam_pose_wc.coeff(0, 2) << std::endl;
+}
+
+
 
 void Tracking::Track()
 {

@@ -187,6 +187,7 @@ void Viewer::Run()
     pangolin::Var<bool> menuStop("menu.Stop",false,false);
     pangolin::Var<bool> menuStepByStep("menu.Step By Step",false,true);  // false, true
     pangolin::Var<bool> menuStep("menu.Step",false,false);
+    pangolin::Var<bool> menuSaveDestination("menu.SaveDestination",false,false);
 
     pangolin::Var<bool> menuShowOptLba("menu.Show LBA opt", false, true);
     // Define Camera Render Object (for view / scene browsing)
@@ -305,6 +306,12 @@ void Viewer::Run()
             mpTracker->mbStep = true;
             menuStep = false;
         }
+
+	if (menuSaveDestination)
+	{
+	    mpTracker->SaveDestination();
+	    menuSaveDestination = false;
+	}
 
 
         d_cam.Activate(s_cam);

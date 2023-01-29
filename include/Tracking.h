@@ -197,6 +197,8 @@ protected:
     // Main tracking function. It is independent of the input sensor.
     void Track();
 
+    void SaveDestination();
+
     // Map initialization for stereo and RGB-D
     void StereoInitialization();
 

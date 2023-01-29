@@ -1797,7 +1797,7 @@ void Tracking::SaveDestination()
         drone_destinations_file.open("drone_destinations.txt");
     auto cam_pose_wc = -mCurrentFrame.GetRotationInverse() * mCurrentFrame.GetPose().translation();
     std::cout << "Saving destination: " << cam_pose_wc << std::endl;
-    drone_destinations_file << cam_pose_wc.coeff(0, 0) << " " << cam_pose_wc.coeff(0, 1) << " " << cam_pose_wc.coeff(0, 2) << std::endl;
+    drone_destinations_file << cam_pose_wc(0, 0) << " " << cam_pose_wc(0, 1) << " " << cam_pose_wc(0, 2) << std::endl;
 }
 
 

@@ -1795,11 +1795,21 @@ void Tracking::SaveDestination()
 {
     if(!drone_destinations_file.is_open())
         drone_destinations_file.open("drone_destinations.txt");
-    auto cam_pose_wc = mCurrentFrame.GetPose().translation();
-    std::cout << "Saving destination: " << cam_pose_wc << std::endl;
-    drone_destinations_file << cam_pose_wc(0, 0) << " " << cam_pose_wc(0, 1) << " " << cam_pose_wc(0, 2) << std::endl;
-}
+    auto rot = mCurrentFrame.GetPose().rotationMatrix();
+    auto translation = mCurrentFrame.GetPose().translation();
+    cv::Mat rot_cv(3, 3, CV_64F);
+    for (int i = 0; i < 3; ++i) {
+	    for (int j = 0; j < 3; ++j) {
+		    rot_cv.at<double>(i, j) = rot(i, j);
+	    }
+    }
 
+    cv::Mat p(cv::Point3d(translation(0), translation(1), translation(2)));
+    p = -rot_cv.t() * p;
+
+    std::cout << "Saving destination: " << p << std::endl;
+    drone_destinations_file << p.at<double>(0, 0) << " " << p.at<double>(0, 1) << " " << p.at<double>(0, 2) << std::endl;
+}
 
 
 void Tracking::Track()

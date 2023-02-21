@@ -1809,6 +1809,7 @@ void Tracking::SaveDestination()
 
     std::cout << "Saving destination: " << p << std::endl;
     drone_destinations_file << p.at<double>(0, 0) << " " << p.at<double>(0, 1) << " " << p.at<double>(0, 2) << std::endl;
+    mpSystem->destinations.push_back(p);
 }
 
 
@@ -2034,6 +2035,8 @@ void Tracking::Track()
                 }
                 else if (mState == LOST)
                 {
+		    mState = RECENTLY_LOST;
+		    return;
 
                     Verbose::PrintMess("A new map is started...", Verbose::VERBOSITY_NORMAL);
 
@@ -2291,6 +2294,7 @@ void Tracking::Track()
         // Reset if the camera get lost soon after initialization
         if(mState==LOST)
         {
+	    return;
             if(pCurrentMap->KeyFramesInMap()<=10)
             {
                 mpSystem->ResetActiveMap();

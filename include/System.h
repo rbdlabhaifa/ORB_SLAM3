@@ -134,6 +134,8 @@ public:
     void Reset();
     void ResetActiveMap();
 
+    std::vector<cv::Mat> destinations = {};
+
     // All threads will be requested to finish.
     // It waits until all threads have finished.
     // This function must be called before saving the trajectory.

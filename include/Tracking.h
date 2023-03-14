@@ -110,6 +110,8 @@ public:
 
     float GetImageScale();
 
+    void RequestChangeMerge(bool to_merge);
+
 #ifdef REGISTER_LOOP
     void RequestStop();
     bool isStopped();
@@ -243,6 +245,8 @@ protected:
     std::vector<IMU::Point> mvImuFromLastFrame;
     std::mutex mMutexImuQueue;
 
+    std::mutex mMutexMerge;
+
     // Imu calibration parameters
     IMU::Calib *mpImuCalib;
 
@@ -358,6 +362,8 @@ protected:
     Sophus::SE3f mTlr;
 
     void newParameterLoader(Settings* settings);
+
+    bool mbMergeRequested;
 
 #ifdef REGISTER_LOOP
     bool Stop();

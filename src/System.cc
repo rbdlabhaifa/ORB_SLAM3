@@ -517,6 +517,13 @@ void System::ResetActiveMap()
     mbResetActiveMap = true;
 }
 
+void System::ChangeMapMerging(bool to_merge)
+{
+    unique_lock<mutex> lock(mMutexMerge);
+    mpTracker->RequestChangeMerge(to_merge);
+}
+
+
 void System::Shutdown()
 {
     {

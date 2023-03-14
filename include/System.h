@@ -185,6 +185,7 @@ public:
     bool isFinished();
 
     void ChangeDataset();
+    void ChangeMapMerging(bool to_merge);
 
     float GetImageScale();
 
@@ -262,6 +263,8 @@ private:
     std::vector<MapPoint*> mTrackedMapPoints;
     std::vector<cv::KeyPoint> mTrackedKeyPointsUn;
     std::mutex mMutexState;
+
+    std::mutex mMutexMerge;
 
     //
     string mStrLoadAtlasFromFile;

@@ -42,7 +42,7 @@ namespace ORB_SLAM3
 
 
 Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Atlas *pAtlas, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, Settings* settings, const string &_nameSeq):
-    mState(NO_IMAGES_YET), mSensor(sensor), mTrackedFr(0), mbStep(false),
+    mState(NO_IMAGES_YET), mSensor(sensor), mTrackedFr(0), mbStep(false), mbMergeRequested(false),
     mbOnlyTracking(false), mbMapUpdated(false), mbVO(false), mpORBVocabulary(pVoc), mpKeyFrameDB(pKFDB),
     mbReadyToInitializate(false), mpSystem(pSys), mpViewer(NULL), bStepByStep(false),
     mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpAtlas(pAtlas), mnLastRelocFrameId(0), time_recently_lost(5.0),
@@ -2035,8 +2035,13 @@ void Tracking::Track()
                 }
                 else if (mState == LOST)
                 {
-		    mState = RECENTLY_LOST;
-		    return;
+		    {
+		        unique_lock<mutex> lock(mMutexMerge);
+			if (!mbMergeRequested) {
+		            mState = RECENTLY_LOST;
+		            return;
+			}
+		    }
 
                     Verbose::PrintMess("A new map is started...", Verbose::VERBOSITY_NORMAL);
 
@@ -2294,7 +2299,12 @@ void Tracking::Track()
         // Reset if the camera get lost soon after initialization
         if(mState==LOST)
         {
-	    return;
+	    {
+	        unique_lock<mutex> lock(mMutexMerge);
+	        if (!mbMergeRequested) {
+	            return;
+	        }
+	    }
             if(pCurrentMap->KeyFramesInMap()<=10)
             {
                 mpSystem->ResetActiveMap();
@@ -4106,6 +4116,13 @@ void Tracking::SaveSubTrajectory(string strNameFile_frames, string strNameFile_k
 float Tracking::GetImageScale()
 {
     return mImageScale;
+}
+
+
+void Tracking::RequestChangeMerge(bool to_merge)
+{
+    unique_lock<mutex> lock(mMutexMerge);
+    mbMergeRequested = to_merge;
 }
 
 #ifdef REGISTER_LOOP

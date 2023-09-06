@@ -150,6 +150,8 @@ class System
     void Reset();
     void ResetActiveMap();
 
+    std::vector<cv::Mat> destinations = {};
+
     // All threads will be requested to finish.
     // It waits until all threads have finished.
     // This function must be called before saving the trajectory.
@@ -200,6 +202,7 @@ class System
     bool isFinished();
 
     void ChangeDataset();
+    void ChangeMapMerging(bool to_merge);
 
     float GetImageScale();
 
@@ -282,6 +285,8 @@ class System
     std::vector<MapPoint *> mTrackedMapPoints;
     std::vector<cv::KeyPoint> mTrackedKeyPointsUn;
     std::mutex mMutexState;
+
+    std::mutex mMutexMerge;
 
     //
     string mStrLoadAtlasFromFile;

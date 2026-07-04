@@ -1,273 +1,332 @@
-# VIAM NOTES
-when downloading on a linux computer with rtk(not a pi) I had to remove brew from my PATH to get some dependencies to work. In addition I had to remove ncurses and libtiff from brew. added them back afterwards but there is 100% a more correct way to do this. Also need to change which version of some packages(like openCV) is being used in CMakeLists.txt
+# ORB_SLAM3 (RBD Lab fork)
 
-## setup Pangolin (includes eigen)
+> **Repository:** [rbdlabhaifa/ORB_SLAM3](https://github.com/rbdlabhaifa/ORB_SLAM3)  
+> **Upstream:** [UZ-SLAMLab/ORB_SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3) (GPL-3.0)
+
+## What is this project?
+
+This is the **RBD Lab / VIAM fork** of **ORB-SLAM3** — a real-time visual, visual-inertial, and multi-map SLAM library supporting monocular, stereo, and RGB-D sensors (pinhole and fisheye models).
+
+Unlike the upstream repository, **this fork ships the core library only**. The `Examples/` folder and demo executables were removed to keep the repo focused as a **dependency for lab projects** (navigation, drone waypoint marking, atlas persistence). It includes RBD-specific extensions: destination saving from the viewer, optional RRT/exit overlays in `MapDrawer`, atlas `.osa` export, and togglable map merging.
+
+## What does it do?
+
+| Capability | How |
+|---|---|
+| Build shared SLAM library | `./build.sh` → `lib/libORB_SLAM3.so` |
+| Track camera pose | Link library; call `System::TrackMonocular` / `TrackStereo` / etc. |
+| Save/load multi-map atlas | YAML `System.SaveAtlasToFile` or `SaveAtlasAsOsaWithTimestamp()` |
+| Mark destinations in viewer | Pangolin menu → writes `drone_destinations.txt` |
+| Evaluate trajectories | `evaluation/evaluate_ate_scale.py` + bundled EuRoC ground truth |
+| Visualize exported maps | `plot_keyframes.py` (Open3D) |
+
+**Typical workflow:**
+
+```bash
+git clone https://github.com/rbdlabhaifa/ORB_SLAM3.git
+cd ORB_SLAM3 && ./build.sh
+# Link libORB_SLAM3.so from your application (e.g. RBD-SLAM)
+```
+
+See **[demos/README.md](demos/README.md)** for API snippets and evaluation steps.
+
+---
+
+# 1. Project Overview
+
+**Problem solved:** Provides a maintained, lab-customized ORB-SLAM3 core for University of Haifa RBD projects without carrying the full upstream example tree.
+
+**Primary users:**
+
+| Audience | Use |
+|---|---|
+| **RBD Lab developers** | Link `libORB_SLAM3.so` from C++ apps |
+| **VIAM / drone work** | Save destinations, draw RRT paths in Pangolin |
+| **Researchers** | EuRoC ATE evaluation scripts |
+
+**What it is not:** A drop-in clone of upstream ORB-SLAM3 with RealSense/EuRoC demo binaries. Those were removed (`3b5d324 Remove unnecessary examples`). ROS nodes in `build_ros.sh` also require copying `Examples/ROS` from upstream.
+
+**Notable branches:** `master` (default), `disable-merging`, `version2`, `ella/update_after_intallation_at_634ai`.
+
+---
+
+# 2. Architecture & Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Language | C++14 |
+| Build | CMake 2.8+, `build.sh` |
+| SLAM core | ORB-SLAM3 (`ORB_SLAM3` namespace) |
+| Vision | OpenCV 3.2+ or 4.x |
+| UI | Pangolin |
+| Optimization | g2o, DBoW2 (Thirdparty/) |
+| Lie algebra | Sophus (Thirdparty/) |
+| Python utils | NumPy, Matplotlib, Open3D (`plot_keyframes.py`) |
+
+```mermaid
+flowchart TB
+  APP[Lab application e.g. RBD-SLAM] --> LIB[libORB_SLAM3.so]
+  LIB --> TRACK[Tracking]
+  LIB --> ATLAS[Atlas / LoopClosing]
+  LIB --> VIEW[Pangolin Viewer]
+  VIEW --> DEST[drone_destinations.txt]
+  EVAL[evaluation/*.py] --> GT[Ground_truth/EuRoC_*]
+```
+
+**RBD-specific API additions** (`include/System.h`, `include/MapDrawer.h`):
+
+- `System::destinations`, `SaveDestination()` via viewer menu
+- `SaveAtlasAsOsaWithTimestamp()`, `ChangeMapMerging(bool)`
+- `MapDrawer::draw_RRT`, `draw_exit`, `RRT_path`, `Exit_point`
+- `System::get_map_drawer()`, `GetAtlas()`
+
+---
+
+# 3. Prerequisites
+
+## Tested platforms
+
+- **Ubuntu 20.04 / 22.04** (primary)
+- macOS build support merged (`7970497`); Linux recommended for lab hardware
+
+## System packages
+
+```bash
+sudo apt install build-essential cmake git \
+  libopencv-dev libeigen3-dev libboost-all-dev libssl-dev \
+  libpython3-dev python3-pip
+```
+
+## Pangolin (includes Eigen usage)
+
 ```bash
 git clone --recursive https://github.com/stevenlovegrove/Pangolin.git
-cd Pangolin 
+cd Pangolin
 ./scripts/install_prerequisites.sh recommended
 mkdir build && cd build
-cmake ..
-make -j4 
-sudo make install
+cmake .. && make -j4 && sudo make install
 ```
-## setup openCV
+
+## Python (evaluation / plotting)
+
 ```bash
-sudo apt install libopencv-dev
+pip3 install -r requirements.txt
 ```
-## setup Eigen3
+
+## Bundled in repo
+
+- `Thirdparty/DBoW2`, `g2o`, `Sophus`
+- `Vocabulary/ORBvoc.txt.tar.gz` (extracted by `build.sh`)
+- `evaluation/Ground_truth/` for EuRoC
+- `Calibration_Tutorial.pdf`
+
+## VIAM / lab setup notes
+
+When building on Linux with **Homebrew also on PATH** (non-Pi RTK machines):
+
+- Temporarily remove Homebrew from `PATH` so CMake finds system OpenCV/Eigen
+- You may need to uninstall conflicting brew packages (`ncurses`, `libtiff`) during build
+- Adjust OpenCV version in `CMakeLists.txt` if `find_package(OpenCV 4)` fails — try pinning to your apt version
+- On Raspberry Pi: Sophus build may OOM — reduce `-j` in `build.sh` (default `make -j6`)
+
+---
+
+# 4. Environment Setup
+
+## Clone
+
 ```bash
-sudo apt install libeigen3-dev
-```
-
-## (semi optional) Python3 - use for some post processing with ground truth data(like vicon)
-```bash
-sudo apt install libpython3.7-dev
-sudo apt install python3-pip
-pip3 install --upgrade pip
-pip3 install numpy
-pip3 install matplotlib
-```
-# OTHER STUFF 
-```bash
-sudo apt install libssl-dev 
-sudo apt-get install libboost-all-dev
-```
-make changes to CMakeLists.txt if needed (change openCV version was the one I ran into)
-sometimes crashes on the initial build on pis, as far as I can tell during the sophus build. 
-in build.sh you may want to tweak the make -j flags 
-# ORB-SLAM3
-
-### V1.0, December 22th, 2021
-**Authors:** Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, [José M. M. Montiel](http://webdiis.unizar.es/~josemari/), [Juan D. Tardos](http://webdiis.unizar.es/~jdtardos/).
-
-The [Changelog](https://github.com/UZ-SLAMLab/ORB_SLAM3/blob/master/Changelog.md) describes the features of each version.
-
-ORB-SLAM3 is the first real-time SLAM library able to perform **Visual, Visual-Inertial and Multi-Map SLAM** with **monocular, stereo and RGB-D** cameras, using **pin-hole and fisheye** lens models. In all sensor configurations, ORB-SLAM3 is as robust as the best systems available in the literature, and significantly more accurate. 
-
-We provide examples to run ORB-SLAM3 in the [EuRoC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) using stereo or monocular, with or without IMU, and in the [TUM-VI dataset](https://vision.in.tum.de/data/datasets/visual-inertial-dataset) using fisheye stereo or monocular, with or without IMU. Videos of some example executions can be found at [ORB-SLAM3 channel](https://www.youtube.com/channel/UCXVt-kXG6T95Z4tVaYlU80Q).
-
-This software is based on [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2) developed by [Raul Mur-Artal](http://webdiis.unizar.es/~raulmur/), [Juan D. Tardos](http://webdiis.unizar.es/~jdtardos/), [J. M. M. Montiel](http://webdiis.unizar.es/~josemari/) and [Dorian Galvez-Lopez](http://doriangalvez.com/) ([DBoW2](https://github.com/dorian3d/DBoW2)).
-
-<a href="https://youtu.be/HyLNq-98LRo" target="_blank"><img src="https://img.youtube.com/vi/HyLNq-98LRo/0.jpg" 
-alt="ORB-SLAM3" width="240" height="180" border="10" /></a>
-
-### Related Publications:
-
-[ORB-SLAM3] Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M. M. Montiel and Juan D. Tardós, **ORB-SLAM3: An Accurate Open-Source Library for Visual, Visual-Inertial and Multi-Map SLAM**, *IEEE Transactions on Robotics 37(6):1874-1890, Dec. 2021*. **[PDF](https://arxiv.org/abs/2007.11898)**.
-
-[IMU-Initialization] Carlos Campos, J. M. M. Montiel and Juan D. Tardós, **Inertial-Only Optimization for Visual-Inertial Initialization**, *ICRA 2020*. **[PDF](https://arxiv.org/pdf/2003.05766.pdf)**
-
-[ORBSLAM-Atlas] Richard Elvira, J. M. M. Montiel and Juan D. Tardós, **ORBSLAM-Atlas: a robust and accurate multi-map system**, *IROS 2019*. **[PDF](https://arxiv.org/pdf/1908.11585.pdf)**.
-
-[ORBSLAM-VI] Raúl Mur-Artal, and Juan D. Tardós, **Visual-inertial monocular SLAM with map reuse**, IEEE Robotics and Automation Letters, vol. 2 no. 2, pp. 796-803, 2017. **[PDF](https://arxiv.org/pdf/1610.05949.pdf)**. 
-
-[Stereo and RGB-D] Raúl Mur-Artal and Juan D. Tardós. **ORB-SLAM2: an Open-Source SLAM System for Monocular, Stereo and RGB-D Cameras**. *IEEE Transactions on Robotics,* vol. 33, no. 5, pp. 1255-1262, 2017. **[PDF](https://arxiv.org/pdf/1610.06475.pdf)**.
-
-[Monocular] Raúl Mur-Artal, José M. M. Montiel and Juan D. Tardós. **ORB-SLAM: A Versatile and Accurate Monocular SLAM System**. *IEEE Transactions on Robotics,* vol. 31, no. 5, pp. 1147-1163, 2015. (**2015 IEEE Transactions on Robotics Best Paper Award**). **[PDF](https://arxiv.org/pdf/1502.00956.pdf)**.
-
-[DBoW2 Place Recognition] Dorian Gálvez-López and Juan D. Tardós. **Bags of Binary Words for Fast Place Recognition in Image Sequences**. *IEEE Transactions on Robotics,* vol. 28, no. 5, pp. 1188-1197, 2012. **[PDF](http://doriangalvez.com/php/dl.php?dlp=GalvezTRO12.pdf)**
-
-# 1. License
-
-ORB-SLAM3 is released under [GPLv3 license](https://github.com/UZ-SLAMLab/ORB_SLAM3/LICENSE). For a list of all code/library dependencies (and associated licenses), please see [Dependencies.md](https://github.com/UZ-SLAMLab/ORB_SLAM3/blob/master/Dependencies.md).
-
-For a closed-source version of ORB-SLAM3 for commercial purposes, please contact the authors: orbslam (at) unizar (dot) es.
-
-If you use ORB-SLAM3 in an academic work, please cite:
-  
-    @article{ORBSLAM3_TRO,
-      title={{ORB-SLAM3}: An Accurate Open-Source Library for Visual, Visual-Inertial 
-               and Multi-Map {SLAM}},
-      author={Campos, Carlos AND Elvira, Richard AND G\´omez, Juan J. AND Montiel, 
-              Jos\'e M. M. AND Tard\'os, Juan D.},
-      journal={IEEE Transactions on Robotics}, 
-      volume={37},
-      number={6},
-      pages={1874-1890},
-      year={2021}
-     }
-
-# 2. Prerequisites
-We have tested the library in **Ubuntu 16.04** and **18.04**, but it should be easy to compile in other platforms. A powerful computer (e.g. i7) will ensure real-time performance and provide more stable and accurate results.
-
-## C++11 or C++0x Compiler
-We use the new thread and chrono functionalities of C++11.
-
-## Pangolin
-We use [Pangolin](https://github.com/stevenlovegrove/Pangolin) for visualization and user interface. Dowload and install instructions can be found at: https://github.com/stevenlovegrove/Pangolin.
-
-## OpenCV
-We use [OpenCV](http://opencv.org) to manipulate images and features. Dowload and install instructions can be found at: http://opencv.org. **Required at leat 3.0. Tested with OpenCV 3.2.0 and 4.4.0**.
-
-## Eigen3
-Required by g2o (see below). Download and install instructions can be found at: http://eigen.tuxfamily.org. **Required at least 3.1.0**.
-
-## DBoW2 and g2o (Included in Thirdparty folder)
-We use modified versions of the [DBoW2](https://github.com/dorian3d/DBoW2) library to perform place recognition and [g2o](https://github.com/RainerKuemmerle/g2o) library to perform non-linear optimizations. Both modified libraries (which are BSD) are included in the *Thirdparty* folder.
-
-## Python
-Required to calculate the alignment of the trajectory with the ground truth. **Required Numpy module**.
-
-* (win) http://www.python.org/downloads/windows
-* (deb) `sudo apt install libpython3.7-dev`
-* (mac) preinstalled with osx
-
-## ROS (optional)
-
-We provide some examples to process input of a monocular, monocular-inertial, stereo, stereo-inertial or RGB-D camera using ROS. Building these examples is optional. These have been tested with ROS Melodic under Ubuntu 18.04.
-
-# 3. Building ORB-SLAM3 library and examples
-
-Clone the repository:
-```
-git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git ORB_SLAM3
-```
-
-We provide a script `build.sh` to build the *Thirdparty* libraries and *ORB-SLAM3*. Please make sure you have installed all required dependencies (see section 2). Execute:
-```
+git clone https://github.com/rbdlabhaifa/ORB_SLAM3.git
 cd ORB_SLAM3
+```
+
+## Configuration template
+
+Copy the example settings file and calibrate for your camera:
+
+```bash
+cp config/settings.monocular.example.yaml config/my_camera.yaml
+# Edit intrinsics; see Calibration_Tutorial.pdf for IMU/stereo/RGB-D fields
+```
+
+Key atlas keys:
+
+```yaml
+System.LoadAtlasFromFile: "/path/to/existing_atlas_basename"
+System.SaveAtlasToFile: "/path/to/save_atlas_basename"
+```
+
+Paths omit the `.osa` extension; the library appends it on save.
+
+No `.env` file. Runtime outputs (`drone_destinations.txt`, `CameraTrajectory.txt`, timing logs) write to the **process working directory**.
+
+---
+
+# 5. Build & Run Instructions
+
+## Build library
+
+```bash
 chmod +x build.sh
 ./build.sh
 ```
 
-This will create **libORB_SLAM3.so**  at *lib* folder and the executables in *Examples* folder.
+Steps performed:
 
-# 4. Running ORB-SLAM3 with your camera
+1. Build `Thirdparty/DBoW2`, `g2o`, `Sophus`
+2. Extract `Vocabulary/ORBvoc.txt` from tarball
+3. CMake + make → `lib/libORB_SLAM3.so`
 
-Directory `Examples` contains several demo programs and calibration files to run ORB-SLAM3 in all sensor configurations with Intel Realsense cameras T265 and D435i. The steps needed to use your own camera are: 
+## Run (via consumer app)
 
-1. Calibrate your camera following `Calibration_Tutorial.pdf` and write your calibration file `your_camera.yaml`
+This repo does **not** ship runnable SLAM binaries. After building, link from your project:
 
-2. Modify one of the provided demos to suit your specific camera model, and build it
-
-3. Connect the camera to your computer using USB3 or the appropriate interface
-
-4. Run ORB-SLAM3. For example, for our D435i camera, we would execute:
-
-```
-./Examples/Stereo-Inertial/stereo_inertial_realsense_D435i Vocabulary/ORBvoc.txt ./Examples/Stereo-Inertial/RealSense_D435i.yaml
+```cmake
+find_library(ORB_SLAM3 ORB_SLAM3 PATHS /path/to/ORB_SLAM3/lib)
+target_link_libraries(your_app ${ORB_SLAM3} ...)
 ```
 
-# 5. EuRoC Examples
-[EuRoC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) was recorded with two pinhole cameras and an inertial sensor. We provide an example script to launch EuRoC sequences in all the sensor configurations.
+Minimal monocular loop — see [demos/README.md](demos/README.md).
 
-1. Download a sequence (ASL format) from http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets
+## ROS (optional, requires upstream Examples)
 
-2. Open the script "euroc_examples.sh" in the root of the project. Change **pathDatasetEuroc** variable to point to the directory where the dataset has been uncompressed. 
-
-3. Execute the following script to process all the sequences with all sensor configurations:
-```
-./euroc_examples
+```bash
+# Copy Examples/ROS from UZ-SLAMLab/ORB_SLAM3 first
+export ROS_PACKAGE_PATH=${ROS_PACKAGE_PATH}:/path/to/ORB_SLAM3/Examples/ROS
+./build_ros.sh
 ```
 
-## Evaluation
-EuRoC provides ground truth for each sequence in the IMU body reference. As pure visual executions report trajectories centered in the left camera, we provide in the "evaluation" folder the transformation of the ground truth to the left camera reference. Visual-inertial trajectories use the ground truth from the dataset.
+## Tests / CI
 
-Execute the following script to process sequences and compute the RMS ATE:
+No automated tests or CI configured. Validate with `./build.sh` success and a linked consumer smoke test.
+
+---
+
+# 6. Repository Structure
+
 ```
-./euroc_eval_examples
+ORB_SLAM3/
+├── CMakeLists.txt          # ★ Builds lib only (no Examples targets)
+├── build.sh                # ★ Full build script
+├── build_ros.sh            # ROS nodes (needs Examples/ROS from upstream)
+├── config/
+│   └── settings.monocular.example.yaml
+├── Vocabulary/
+│   └── ORBvoc.txt.tar.gz   # Extracted on build
+├── include/ / src/         # ORB-SLAM3 core + RBD patches
+├── Thirdparty/             # DBoW2, g2o, Sophus
+├── evaluation/             # ATE scripts + EuRoC ground truth
+├── plot_keyframes.py       # Open3D PCD viewer
+├── demos/README.md
+├── Calibration_Tutorial.pdf
+├── Changelog.md
+└── Dependencies.md
 ```
 
-# 6. TUM-VI Examples
-[TUM-VI dataset](https://vision.in.tum.de/data/datasets/visual-inertial-dataset) was recorded with two fisheye cameras and an inertial sensor.
+**Intentionally absent:** `Examples/`, `euroc_examples.sh`, `tum_vi_examples.sh` (upstream paths referenced in old README).
 
-1. Download a sequence from https://vision.in.tum.de/data/datasets/visual-inertial-dataset and uncompress it.
+---
 
-2. Open the script "tum_vi_examples.sh" in the root of the project. Change **pathDatasetTUM_VI** variable to point to the directory where the dataset has been uncompressed. 
+# 7. Core Workflows & Data Flow
 
-3. Execute the following script to process all the sequences with all sensor configurations:
+## Workflow A — Library build & link
+
 ```
-./tum_vi_examples
-```
-
-## Evaluation
-In TUM-VI ground truth is only available in the room where all sequences start and end. As a result the error measures the drift at the end of the sequence. 
-
-Execute the following script to process sequences and compute the RMS ATE:
-```
-./tum_vi_eval_examples
+build.sh
+  → Thirdparty libs + libORB_SLAM3.so
+  → Consumer app links .so, passes Vocabulary + YAML settings
+  → Track*() per frame → trajectory / atlas files
 ```
 
-# 7. ROS Examples
+## Workflow B — Interactive mapping with destinations
 
-### Building the nodes for mono, mono-inertial, stereo, stereo-inertial and RGB-D
-Tested with ROS Melodic and ubuntu 18.04.
+```
+System(..., bUseViewer=true)
+  → Pangolin viewer
+  → User clicks "SaveDestination"
+  → drone_destinations.txt + System::destinations
+```
 
-1. Add the path including *Examples/ROS/ORB_SLAM3* to the ROS_PACKAGE_PATH environment variable. Open .bashrc file:
-  ```
-  gedit ~/.bashrc
-  ```
-and add at the end the following line. Replace PATH by the folder where you cloned ORB_SLAM3:
+## Workflow C — Trajectory evaluation
 
-  ```
-  export ROS_PACKAGE_PATH=${ROS_PACKAGE_PATH}:PATH/ORB_SLAM3/Examples/ROS
-  ```
-  
-2. Execute `build_ros.sh` script:
+```
+Consumer writes CameraTrajectory.txt
+  → evaluation/associate.py
+  → evaluation/evaluate_ate_scale.py
+  → RMS ATE vs evaluation/Ground_truth/
+```
 
-  ```
-  chmod +x build_ros.sh
-  ./build_ros.sh
-  ```
-  
-### Running Monocular Node
-For a monocular input from topic `/camera/image_raw` run node ORB_SLAM3/Mono. You will need to provide the vocabulary file and a settings file. See the monocular examples above.
+**Read first:** `include/System.h`, `src/System.cc`, `include/MapDrawer.h`, `src/Viewer.cc` (SaveDestination menu).
 
-  ```
-  rosrun ORB_SLAM3 Mono PATH_TO_VOCABULARY PATH_TO_SETTINGS_FILE
-  ```
+---
 
-### Running Monocular-Inertial Node
-For a monocular input from topic `/camera/image_raw` and an inertial input from topic `/imu`, run node ORB_SLAM3/Mono_Inertial. Setting the optional third argument to true will apply CLAHE equalization to images (Mainly for TUM-VI dataset).
+# 8. Deployment & CI/CD
 
-  ```
-  rosrun ORB_SLAM3 Mono PATH_TO_VOCABULARY PATH_TO_SETTINGS_FILE [EQUALIZATION]	
-  ```
+**Deployment:** Workstation or lab PC with OpenGL/Pangolin display. Built as a local shared library; no containers or cloud pipeline in repo.
 
-### Running Stereo Node
-For a stereo input from topic `/camera/left/image_raw` and `/camera/right/image_raw` run node ORB_SLAM3/Stereo. You will need to provide the vocabulary file and a settings file. For Pinhole camera model, if you **provide rectification matrices** (see Examples/Stereo/EuRoC.yaml example), the node will recitify the images online, **otherwise images must be pre-rectified**. For FishEye camera model, rectification is not required since system works with original images:
+**CI/CD:** None configured.
 
-  ```
-  rosrun ORB_SLAM3 Stereo PATH_TO_VOCABULARY PATH_TO_SETTINGS_FILE ONLINE_RECTIFICATION
-  ```
+---
 
-### Running Stereo-Inertial Node
-For a stereo input from topics `/camera/left/image_raw` and `/camera/right/image_raw`, and an inertial input from topic `/imu`, run node ORB_SLAM3/Stereo_Inertial. You will need to provide the vocabulary file and a settings file, including rectification matrices if required in a similar way to Stereo case:
+# 9. Known Quirks & Technical Debt
 
-  ```
-  rosrun ORB_SLAM3 Stereo_Inertial PATH_TO_VOCABULARY PATH_TO_SETTINGS_FILE ONLINE_RECTIFICATION [EQUALIZATION]	
-  ```
-  
-### Running RGB_D Node
-For an RGB-D input from topics `/camera/rgb/image_raw` and `/camera/depth_registered/image_raw`, run node ORB_SLAM3/RGBD. You will need to provide the vocabulary file and a settings file. See the RGB-D example above.
+| Issue | Notes |
+|---|---|
+| **No Examples in repo** | Old README sections 4–7 describe upstream binaries; use [demos/README.md](demos/README.md) |
+| **Library-only CMakeLists** | `build.sh` creates `bin/` but no example targets are defined |
+| **OpenCV version probing** | Tries OpenCV 4 first, then 3.2 — may need manual `CMakeLists.txt` edit |
+| **Map merging** | Toggle via `ChangeMapMerging()`; see `disable-merging` branch |
+| **`REGISTER_TIMES`** | Uncomment in `include/Settings.h` (not `Config.h`) for timing dumps |
+| **`build.sh` not idempotent** | Re-run may fail if `Thirdparty/*/build` exists — clean manually |
+| **Aggressive `.gitignore`** | Ignores all then un-ignores patterns; `Examples/` paths listed but folder absent |
+| **GPL-3.0** | Derivative works must comply; commercial license from original authors |
 
-  ```
-  rosrun ORB_SLAM3 RGBD PATH_TO_VOCABULARY PATH_TO_SETTINGS_FILE
-  ```
+---
 
-**Running ROS example:** Download a rosbag (e.g. V1_02_medium.bag) from the EuRoC dataset (http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets). Open 3 tabs on the terminal and run the following command at each tab for a Stereo-Inertial configuration:
-  ```
-  roscore
-  ```
-  
-  ```
-  rosrun ORB_SLAM3 Stereo_Inertial Vocabulary/ORBvoc.txt Examples/Stereo-Inertial/EuRoC.yaml true
-  ```
-  
-  ```
-  rosbag play --pause V1_02_medium.bag /cam0/image_raw:=/camera/left/image_raw /cam1/image_raw:=/camera/right/image_raw /imu0:=/imu
-  ```
-  
-Once ORB-SLAM3 has loaded the vocabulary, press space in the rosbag tab.
+# 10. Troubleshooting / FAQ
 
-**Remark:** For rosbags from TUM-VI dataset, some play issue may appear due to chunk size. One possible solution is to rebag them with the default chunk size, for example:
-  ```
-  rosrun rosbag fastrebag.py dataset-room1_512_16.bag dataset-room1_512_16_small_chunks.bag
-  ```
+### 1. `./build.sh` fails at Sophus on Pi
 
-# 8. Running time analysis
-A flag in `include\Config.h` activates time measurements. It is necessary to uncomment the line `#define REGISTER_TIMES` to obtain the time stats of one execution which is shown at the terminal and stored in a text file(`ExecTimeMean.txt`).
+Reduce parallelism: edit `build.sh` to `make -j2` or `make -j1`.
 
-# 9. Calibration
-You can find a tutorial for visual-inertial calibration and a detailed description of the contents of valid configuration files at  `Calibration_Tutorial.pdf`
+### 2. OpenCV not found / wrong version
+
+```bash
+pkg-config --modversion opencv4
+# Edit CMakeLists.txt find_package(OpenCV ...) if needed
+```
+
+### 3. Homebrew conflicts on Linux
+
+```bash
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# rebuild from clean build/ dirs
+```
+
+### 4. Vocabulary missing at runtime
+
+Ensure `build.sh` completed the tar step:
+
+```bash
+ls Vocabulary/ORBvoc.txt
+```
+
+### 5. No demo executable after build
+
+Expected — link `lib/libORB_SLAM3.so` from your app or restore `Examples/` from upstream.
+
+### 6. `build_ros.sh` fails immediately
+
+Copy `Examples/ROS/ORB_SLAM3` from [UZ-SLAMLab/ORB_SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3) into this tree first.
+
+---
+
+## Upstream references
+
+- Original README content (EuRoC, TUM-VI, ROS): [UZ-SLAMLab/ORB_SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3)
+- License: [GPL-3.0](LICENSE) — see [Dependencies.md](Dependencies.md)
+- Citation: Campos et al., *IEEE T-RO* 2021 ([arXiv:2007.11898](https://arxiv.org/abs/2007.11898))
+
+## Related RBD Lab projects
+
+[AI634Code](https://github.com/rbdlabhaifa/AI634Code) · [RBD-SLAM](https://github.com/rbdlabhaifa/RBD-SLAM) · [SFM-SLAM](https://github.com/rbdlabhaifa/SFM-SLAM) · [colmap_lite_version](https://github.com/rbdlabhaifa/colmap_lite_version)
